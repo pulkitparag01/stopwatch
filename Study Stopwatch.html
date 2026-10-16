@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Study Stopwatch</title>
+<style>
+:root{color-scheme:dark;--bg1:#000;--bg2:#0d0d0d;--card:rgba(255,255,255,.06);--text:#fff;--muted:#9a9a9a;--accent:#fff;--break:#fff;--line:rgba(255,255,255,.22);
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0}
+body{font-family:"Poppins",system-ui,-apple-system,"Segoe UI",sans-serif;background:linear-gradient(160deg,var(--bg1),var(--bg2)) fixed;color:var(--text);display:flex;justify-content:center;padding:28px 16px;text-align:center}
+.wrap{width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;gap:20px}
+.label{letter-spacing:.2em;text-transform:uppercase;font-size:.75rem;color:var(--muted)}
+.time{font-size:clamp(3.2rem,16vw,6rem);font-weight:600;font-variant-numeric:tabular-nums;line-height:1;margin-top:8px}
+.status{font-size:.95rem;color:var(--muted);min-height:1.4em}
+.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border:0;border-radius:999px;padding:14px 30px;font-size:1rem;font-weight:600;transition:transform .1s}
+button:active{transform:scale(.96)}
+#main{background:#fff;color:#000;min-width:190px;border:1px solid #fff}
+#main.onbreak{background:#000;color:#fff;border:1px solid #fff}
+#reset{background:var(--card);color:var(--text);border:1px solid var(--line)}
+.card{width:100%;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px 20px;backdrop-filter:blur(8px)}
+.card.live{border-color:var(--break)}
+.card .time{font-size:2.2rem;color:var(--break)}
+.total{margin:14px 0}
+.total .time{font-size:2.2rem}
+.tw{max-height:260px;overflow-y:auto;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.95rem;table-layout:fixed}
+th,td{text-align:center;padding:9px 6px;border-bottom:1px solid var(--line)}
+th{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.empty{color:var(--muted);font-size:.9rem;padding:14px 4px}
+.divider{height:1px;background:var(--line);margin:4px 0 14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="label">Study time</div>
+    <div class="time" id="study">00:00:00</div>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="btns">
+    <button id="main">Start</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div class="card" id="breakBox">
+    <div class="label">Current break</div>
+    <div class="time" id="cur">00:00:00</div>
+  </div>
+  <div class="card">
+    <div class="label">Total break time</div>
+    <div class="total"><div class="time" id="total">00:00:00</div></div>
+    <div class="divider"></div>
+    <div class="label" style="margin-bottom:6px">Break log</div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>#</th><th>Started</th><th>Duration</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty">No breaks yet. They show up here when you resume studying.</div>
+    </div>
+  </div>
+</div>
+<script>
+var mode="idle",studyMs=0,curMs=0,last=0,breakStart=null,breaks=[];
+var $=function(id){return document.getElementById(id)};
+function fmt(ms){var s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60);s=s%60;
+return [h,m,s].map(function(n){return String(n).padStart(2,"0")}).join(":")}
+function clock(t){return new Date(t).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}
+function loggedTotal(){return breaks.reduce(function(a,b){return a+b.ms},0)}
+function tick(){
+  var now=Date.now();
+  if(mode==="study")studyMs+=now-last;
+  else if(mode==="break")curMs+=now-last;
+  last=now;
+  $("study").textContent=fmt(studyMs);
+  $("cur").textContent=fmt(curMs);
+  $("total").textContent=fmt(loggedTotal()+curMs);
+  document.title=(mode==="study"?"Studying ":mode==="break"?"Break ":"")+fmt(studyMs);
+}
+function renderTable(){
+  var h="";
+  breaks.forEach(function(b,i){h+="<tr><td>"+(i+1)+"</td><td>"+clock(b.start)+"</td><td>"+fmt(b.ms)+"</td></tr>"});
+  $("rows").innerHTML=h;
+  $("empty").style.display=breaks.length?"none":"block";
+}
+function render(){
+  var b=$("main");
+  b.className=mode==="break"?"onbreak":"";
+  $("breakBox").className="card"+(mode==="break"?" live":"");
+  if(mode==="idle"){b.textContent="Start";$("status").textContent="Press start when you're ready to study"}
+  if(mode==="study"){b.textContent="Take a break";$("status").textContent="Studying… stay focused"}
+  if(mode==="break"){b.textContent="Back to study";$("status").textContent="On a break"}
+}
+$("main").onclick=function(){
+  tick();
+  if(mode==="study"){mode="break";breakStart=Date.now();curMs=0}
+  else{
+    if(mode==="break"){breaks.push({start:breakStart,ms:curMs});curMs=0;breakStart=null;renderTable()}
+    mode="study";
+  }
+  last=Date.now();tick();render();
+};
+$("reset").onclick=function(){mode="idle";studyMs=0;curMs=0;breaks=[];breakStart=null;last=Date.now();tick();render();renderTable()};
+setInterval(tick,200);
+tick();render();renderTable();
+</script>
+</body>
+</html>
